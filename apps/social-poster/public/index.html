@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>一鍵發文 FB + IG</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #f0f4ff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.1);
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .sub { color: #888; font-size: .9rem; margin-bottom: 28px; }
+
+    /* 拖曳上傳區 */
+    .drop-zone {
+      border: 2px dashed #c4c9e0;
+      border-radius: 14px;
+      height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      overflow: hidden;
+      background: #fafbff;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #5b6ef5;
+      background: #f0f2ff;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: 8px; }
+    .drop-zone .hint { color: #888; font-size: .88rem; }
+    .drop-zone img.preview {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .drop-zone .remove-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0,0,0,.5);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+
+    label.field-label {
+      display: block;
+      font-weight: 700;
+      font-size: .9rem;
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      border: 1.5px solid #e0e3ef;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: .95rem;
+      resize: vertical;
+      min-height: 110px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    textarea:focus { border-color: #5b6ef5; }
+    .char-count { text-align: right; font-size: .8rem; color: #aaa; margin-top: 4px; }
+
+    /* 目標平台 */
+    .targets { display: flex; gap: 12px; margin-top: 8px; }
+    .target-btn {
+      flex: 1;
+      border: 2px solid #e0e3ef;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      background: #fff;
+      font-size: .95rem;
+      font-weight: 600;
+      transition: border-color .2s, background .2s;
+    }
+    .target-btn.active-fb { border-color: #1877f2; background: #eef4ff; color: #1877f2; }
+    .target-btn.active-ig { border-color: #e1306c; background: #fff0f5; color: #e1306c; }
+    .target-btn .logo { font-size: 1.4rem; }
+    .target-btn input { display: none; }
+
+    /* 送出按鈕 */
+    .submit-btn {
+      width: 100%;
+      margin-top: 24px;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #5b6ef5, #a259e6);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+    }
+    .submit-btn:hover { opacity: .92; }
+    .submit-btn:active { transform: scale(.98); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* 結果 */
+    .result {
+      margin-top: 20px;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: .9rem;
+      display: none;
+    }
+    .result.success { background: #edfbf3; color: #1a7340; border: 1px solid #a5dfc0; }
+    .result.error { background: #fff2f2; color: #c0392b; border: 1px solid #f5c0c0; }
+    .result.partial { background: #fffaf0; color: #8a6000; border: 1px solid #f0d080; }
+    .result ul { margin-top: 6px; margin-left: 16px; }
+
+    /* config 狀態 */
+    .config-bar {
+      margin-bottom: 20px;
+      background: #f5f7ff;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .82rem;
+      color: #555;
+    }
+    .config-bar span { margin-right: 12px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>📢 一鍵發文</h1>
+  <p class="sub">上傳圖片 + 輸入文案，同時發到 Facebook & Instagram</p>
+
+  <div class="config-bar" id="configBar">檢查設定中…</div>
+
+  <!-- 圖片上傳 -->
+  <label class="field-label">圖片</label>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="imageInput" accept="image/*" />
+    <div class="icon">🖼️</div>
+    <div class="hint">點擊選擇，或拖曳圖片到這裡</div>
+  </div>
+
+  <!-- 文案 -->
+  <label class="field-label" for="caption">文案</label>
+  <textarea id="caption" placeholder="今天要說什麼呢？（可加 hashtag）" maxlength="2200"></textarea>
+  <div class="char-count"><span id="charCount">0</span> / 2200</div>
+
+  <!-- 發文平台 -->
+  <label class="field-label">發到</label>
+  <div class="targets">
+    <button class="target-btn active-fb" id="btnFB" type="button">
+      <span class="logo">📘</span> Facebook
+    </button>
+    <button class="target-btn active-ig" id="btnIG" type="button">
+      <span class="logo">📸</span> Instagram
+    </button>
+  </div>
+
+  <button class="submit-btn" id="submitBtn">🚀 發文</button>
+
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  // —— config check ——
+  fetch('/api/config-check')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('configBar').innerHTML =
+        Object.entries(data).map(([k, v]) => `<span>${v} ${k.replace(/_/g,' ')}</span>`).join('')
+    })
+    .catch(() => {
+      document.getElementById('configBar').textContent = '⚠️ 無法連線到伺服器'
+    })
+
+  // —— 圖片 ——
+  let imageFile = null
+  const dropZone = document.getElementById('dropZone')
+  const imageInput = document.getElementById('imageInput')
+
+  imageInput.addEventListener('change', () => {
+    if (imageInput.files[0]) setImage(imageInput.files[0])
+  })
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over') })
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'))
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault()
+    dropZone.classList.remove('drag-over')
+    if (e.dataTransfer.files[0]) setImage(e.dataTransfer.files[0])
+  })
+
+  function setImage(file) {
+    imageFile = file
+    const url = URL.createObjectURL(file)
+    dropZone.innerHTML = `
+      <img class="preview" src="${url}" alt="preview" />
+      <button class="remove-btn" onclick="clearImage(event)">✕</button>
+    `
+  }
+  function clearImage(e) {
+    e.stopPropagation()
+    imageFile = null
+    imageInput.value = ''
+    dropZone.innerHTML = `
+      <input type="file" id="imageInput" accept="image/*" />
+      <div class="icon">🖼️</div>
+      <div class="hint">點擊選擇，或拖曳圖片到這裡</div>
+    `
+    document.getElementById('imageInput').addEventListener('change', () => {
+      if (document.getElementById('imageInput').files[0])
+        setImage(document.getElementById('imageInput').files[0])
+    })
+  }
+
+  // —— 文案字數 ——
+  document.getElementById('caption').addEventListener('input', function() {
+    document.getElementById('charCount').textContent = this.value.length
+  })
+
+  // —— 平台切換 ——
+  let targets = new Set(['facebook', 'instagram'])
+  document.getElementById('btnFB').addEventListener('click', () => toggle('facebook', 'btnFB', 'active-fb'))
+  document.getElementById('btnIG').addEventListener('click', () => toggle('instagram', 'btnIG', 'active-ig'))
+
+  function toggle(platform, btnId, cls) {
+    const btn = document.getElementById(btnId)
+    if (targets.has(platform)) {
+      if (targets.size === 1) return // 至少選一個
+      targets.delete(platform)
+      btn.classList.remove(cls)
+    } else {
+      targets.add(platform)
+      btn.classList.add(cls)
+    }
+  }
+
+  // —— 發文 ——
+  document.getElementById('submitBtn').addEventListener('click', async () => {
+    const caption = document.getElementById('caption').value.trim()
+    const btn = document.getElementById('submitBtn')
+    const resultEl = document.getElementById('result')
+
+    if (!imageFile) { showResult('error', '請先選擇圖片'); return }
+    if (!caption) { showResult('error', '請填寫文案'); return }
+    if (!targets.size) { showResult('error', '請至少選擇一個發文平台'); return }
+
+    btn.disabled = true
+    btn.textContent = '⏳ 發文中，請稍候…'
+    resultEl.style.display = 'none'
+
+    const form = new FormData()
+    form.append('image', imageFile)
+    form.append('caption', caption)
+    targets.forEach(t => form.append('targets', t))
+
+    try {
+      const res = await fetch('/api/post', { method: 'POST', body: form })
+      const data = await res.json()
+
+      if (!res.ok) {
+        showResult('error', data.error || '發文失敗')
+        return
+      }
+
+      const successList = Object.keys(data.results).map(k => `✅ ${k}`)
+      const errorList = Object.entries(data.errors).map(([k, v]) => `❌ ${k}：${v}`)
+      const lines = [...successList, ...errorList]
+
+      if (errorList.length && successList.length) {
+        showResult('partial', '部分成功：<ul>' + lines.map(l => `<li>${l}</li>`).join('') + '</ul>')
+      } else if (errorList.length) {
+        showResult('error', '發文失敗：<ul>' + errorList.map(l => `<li>${l}</li>`).join('') + '</ul>')
+      } else {
+        showResult('success', '🎉 發文成功！<ul>' + successList.map(l => `<li>${l}</li>`).join('') + '</ul>')
+      }
+    } catch (err) {
+      showResult('error', '無法連線到伺服器：' + err.message)
+    } finally {
+      btn.disabled = false
+      btn.textContent = '🚀 發文'
+    }
+  })
+
+  function showResult(type, html) {
+    const el = document.getElementById('result')
+    el.className = `result ${type}`
+    el.innerHTML = html
+    el.style.display = 'block'
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+</script>
+</body>
+</html>
